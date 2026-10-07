@@ -1,0 +1,26 @@
+# Jira custom-field IDs and the one state that authorizes production change.
+# Keep API credentials in GitHub Actions secrets.
+schema_version: "1.0"
+issue_type: Change Request
+issue_key_pattern: "^[A-Z][A-Z0-9]+-[1-9][0-9]*$"
+production_environment: Production
+
+jira_fields:
+  approval_state:
+    id: customfield_12345
+    type: select
+    required: true
+    approved_value: Approved
+  target_environment:
+    id: customfield_12346
+    type: select
+    required: true
+  risk:
+    id: customfield_12347
+    type: select
+    required: true
+  # Add another entry with required: true to enforce a mandatory Jira field.
+  # change_reason:
+  #   id: customfield_12348
+  #   type: text
+  #   required: true

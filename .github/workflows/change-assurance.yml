@@ -1,0 +1,51 @@
+name: Change assurance
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened, ready_for_review, converted_to_draft]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  jira-validation:
+    name: Jira validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # pull_request_target receives secrets. Check out only the trusted target
+      # branch implementation; never check out or execute PR-head code.
+      - name: Check out trusted validator
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Install Python dependencies
+        run: python3 -m pip install -r requirements.txt
+
+      - name: Validate Jira change
+        id: validate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_STEP_SUMMARY: ${{ github.step_summary }}
+          PYTHONPATH: src
+          CHANGE_REQUEST_CONFIG: ${{ vars.CHANGE_REQUEST_CONFIG || 'config/change-request.yml' }}
+          PRODUCTION_BRANCHES: ${{ vars.CHANGE_ASSURANCE_PRODUCTION_BRANCHES || 'main' }}
+          JIRA_CLOUD_ID: ${{ vars.JIRA_CLOUD_ID }}
+          JIRA_OAUTH_CLIENT_ID: ${{ secrets.JIRA_OAUTH_CLIENT_ID }}
+          JIRA_OAUTH_CLIENT_SECRET: ${{ secrets.JIRA_OAUTH_CLIENT_SECRET }}
+        run: python3 -m change_assurance.action.github_action
+
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: change-assurance-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: change-assurance-evidence.json
+          if-no-files-found: warn
+          retention-days: 30

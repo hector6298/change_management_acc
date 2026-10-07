@@ -8,15 +8,13 @@
 - A governed production deployment requires an existing Jira issue of the
   configured change-request type, explicit approval, and production as its
   target environment.
-- Approval must precede production deployment. A Jira status alone is not
-  approval unless the configured workflow makes the approved status reachable
-  only through the approval transition.
+- Approval must precede production deployment. The current Approval State
+  must match the configured `approved_value`, and Jira history must identify
+  who changed it and when. Workflow status is recorded but does not determine
+  approval.
 - Once a deployment is recorded, the issue key is immutable. Do not reuse one
   change request for unrelated changes; create a distinct Jira issue for each
   independently governed change.
-- Emergency requests use the same issue key and identity. They still need an
-  explicit approval state; the expedited approval path should be labeled
-  `Emergency Approved` and captured as such.
 
 ## Suggested demo fields
 
@@ -28,19 +26,20 @@ to its create and view layouts. Use existing Jira fields where noted.
 | Change ID | Issue key (built in) | Automatically assigned, e.g. `DEMO-12`; never create a second ID field |
 | Summary | Summary (built in) | Short statement of the change |
 | Description | Description (built in) | Scope, reason, and implementation notes |
-| Status | Workflow status (built in) | `Draft`, `Awaiting Approval`, `Approved`, `Rejected`, `Implemented`; `Emergency Approved` for the expedited path |
-| Approval State | Single-select custom field | `Pending`, `Approved`, `Rejected`, `Emergency Approved`; keep separate from generic workflow status for an unambiguous demo contract |
-| Approved By | User Picker (single user) | Person who approved; populate only when approval is granted |
-| Approved At | Date Time Picker | Approval timestamp; populate only when approval is granted |
+| Status | Workflow status (built in) | Jira workflow lifecycle; observed by the Action but not used as the approval gate |
+| Approval State | Single-select custom field | A value selected by the team; the configured `approved_value` is the one value that authorizes production |
 | Risk | Single-select custom field | `Low`, `Medium`, `High`, `Critical` |
 | Target Environment | Single-select custom field | `Development`, `Test`, `Production` |
-| Emergency Change | Checkbox (or single-select Yes/No) | Marks expedited requests; does not waive approval |
 
 For an initial demo, make Summary, Approval State, Risk, and Target Environment
 required on the Change Request create form. Start Approval State at `Pending`.
-Do not make Approved By/Approved At required at creation; require them as part
-of the approval procedure. Only Jira admins/project admins should be able to
-approve, as supported by the project/workflow plan.
+The Jira issue history records who changed Approval State and when. The
+validator uses that history as approval evidence, so separate Approved By and
+Approved At fields are unnecessary. Restrict the approval transition and
+Approval State edit to authorized approvers, as supported by the project and
+workflow plan; the history alone records the editor but does not decide whether
+that person was authorized. The current policy uses one configured approved
+value and does not distinguish a separate emergency approval state.
 
 ### Configure a company-managed project
 
@@ -50,13 +49,13 @@ approve, as supported by the project/workflow plan.
    → Fields. Add them to the Change Request create/view screens and layout.
 3. In project settings → Workflows, edit the workflow used by Change Request.
    Add the statuses above and transitions `Submit for Approval`, `Approve`,
-   `Reject`, and `Implement` (plus `Emergency Approve` if needed). Restrict
+   `Reject`, and `Implement`. Restrict
    approval transitions to the approver role where the Jira plan/workflow editor
    supports that condition.
-4. On approval, set Approval State to `Approved` (or `Emergency Approved`) and
-   populate Approved By and Approved At. On rejection, set it to `Rejected`.
-   Configure workflow transition screens/validators or a Jira automation rule
-   to collect/update these fields.
+4. On approval, transition the workflow and set Approval State to the
+   configured approved value. On rejection, set it to a non-approved value. Jira records
+   the field change, actor, and timestamp in the issue history; no separate
+   approver/time fields or automation are needed.
 5. Publish the workflow and create a sample issue. Verify an ordinary user
    cannot approve if that restriction is part of the demo requirement.
 
@@ -66,8 +65,8 @@ Use Project settings → Work types to add **Change Request**, configure its
 fields and required fields, then use the project's workflow editor to add the
 statuses/transitions. Add custom fields to the project/work type where needed.
 Team-managed and company-managed projects expose different workflow and field
-controls; if the editor cannot restrict approvers or populate approval metadata,
-show those as controlled demo steps and do not claim Jira enforces them.
+controls; if the editor cannot restrict approvers, show approval as a
+controlled demo step and do not claim Jira enforces it.
 
 Jira Cloud menus and capabilities vary by project type and plan. Atlassian's
 current approval-step guide describes company-managed workflow approval setup:
@@ -79,10 +78,9 @@ current approval-step guide describes company-managed workflow approval setup:
 |---|---|
 | Missing/malformed Change ID or issue not found | No |
 | Wrong issue type | No |
-| Approval state is Pending/Rejected | No |
-| Production target without Approved state and approval metadata | No |
-| Production target with Approved state and approver/time | Yes, subject to later Block 2 validation |
-| Emergency production target with Emergency Approved state and approver/time | Yes, subject to configured emergency procedure |
+| Approval State does not equal the configured approved value | No |
+| Production target without a matching approval history entry and actor/time | No |
+| Production target with the configured approved value and approver/time in issue history | Yes, subject to later Block 2 validation |
 | Development/Test target | Production approval rule does not apply |
 
 The local contract validates request data and deployment eligibility. It does
@@ -92,15 +90,25 @@ later integration, authenticated API checks.
 
 ## Local contract model
 
-`src/change_assurance/change_identity.py` provides:
+`src/change_assurance/models/change_identity.py` provides:
 
 - Jira issue-key format validation and canonical `change_id` normalization.
-- Required data and allowed approval/risk/environment value checks.
-- Production eligibility checks requiring approval metadata.
+- Required identity and non-empty normalized fields.
+- Production eligibility checks requiring the configured Approval State and
+  extractable actor/timestamp from issue history.
 - A deployed identity wrapper that rejects changing the Change ID after
   deployment.
 
-The versioned JSON Schema in `schemas/change-request.schema.json` documents the
-normalized record expected by later GitHub and Databricks evidence ingestion.
-Jira custom-field IDs are deliberately not hard-coded: map actual field IDs to
-these normalized names in a future Jira connector.
+The runtime rules are loaded from [`config/change-request.yml`](../config/change-request.yml).
+It defines the issue type, schema version, Jira key pattern, production
+environment, Jira field mappings, and one `approved_value`. Other Jira field
+values are required or optional according to `jira_fields`; their values are
+not restricted to enumerated lists. The Action and local `ChangeRequest` model
+read this same file. Set `CHANGE_REQUEST_CONFIG` to use another YAML path.
+Keep the file in the trusted base branch because it helps determine the merge
+decision.
+
+Jira custom-field IDs are configured in the `jira_fields` section of the YAML;
+Jira credentials stay in GitHub Actions secrets. The versioned JSON Schema in
+`schemas/change-request.schema.json` documents the default normalized record
+expected by later GitHub and Databricks evidence ingestion.
