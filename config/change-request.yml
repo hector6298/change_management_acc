@@ -7,16 +7,12 @@ production_environment: Production
 
 jira_fields:
   approval_state:
-    id: customfield_12345
+    id: customfield_10044
     type: select
     required: true
     approved_value: Approved
-  target_environment:
-    id: customfield_12346
-    type: select
-    required: true
   risk:
-    id: customfield_12347
+    id: customfield_10047
     type: select
     required: true
   # Add another entry with required: true to enforce a mandatory Jira field.
