@@ -11,9 +11,7 @@
     "issue_type",
     "summary",
     "status",
-    "approval_state",
-    "risk",
-    "target_environment"
+    "approval_state"
   ],
   "properties": {
     "schema_version": { "const": "1.0" },
@@ -32,8 +30,7 @@
       "type": ["string", "null"],
       "format": "date-time"
     },
-    "risk": { "type": "string", "minLength": 1 },
-    "target_environment": { "type": "string", "minLength": 1 },
+    "risk": { "type": ["string", "null"] },
     "jira_url": { "type": ["string", "null"], "format": "uri" }
   }
 }

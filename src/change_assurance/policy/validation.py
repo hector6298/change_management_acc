@@ -176,8 +176,6 @@ class JiraChangeSnapshot:
         Jira account ID of the person who changed the approval field.
     approved_at : datetime or None
         Approval timestamp, when present.
-    target_environment : str or None
-        Configured target environment field value.
     risk : str or None
         Configured risk field value.
     required_fields : dict[str, Any]
@@ -191,7 +189,6 @@ class JiraChangeSnapshot:
     approval_history_state: Optional[str]
     approved_by: Optional[str]
     approved_at: Optional[datetime]
-    target_environment: Optional[str]
     risk: Optional[str]
     required_fields: dict[str, Any]
 
@@ -211,7 +208,6 @@ class JiraChangeSnapshot:
             "approval_history_state": self.approval_history_state,
             "approved_by": self.approved_by,
             "approved_at": self.approved_at.isoformat() if self.approved_at else None,
-            "target_environment": self.target_environment,
             "risk": self.risk,
             "required_fields": self.required_fields,
         }
@@ -284,7 +280,6 @@ class JiraApprovalPolicy:
             approval_history_state=approval_history["approval_state"],
             approved_by=approval_history["approved_by"],
             approved_at=approval_history["approved_at"],
-            target_environment=configured_values.get("target_environment"),
             risk=configured_values.get("risk"),
             required_fields={
                 name: configured_values[name]
@@ -332,12 +327,6 @@ class JiraApprovalPolicy:
                 f"`{change_id}` is `{snapshot.issue_type or 'unknown'}`; expected a Change Request.",
                 details=details,
             )
-        if snapshot.target_environment != contract.production_environment:
-            raise ValidationFailure(
-                "JIRA_NOT_PRODUCTION",
-                f"`{change_id}` targets `{snapshot.target_environment or 'an unset environment'}`, not {contract.production_environment}.",
-                details=details,
-            )
         if snapshot.approval_state != contract.approved_state:
             raise ValidationFailure(
                 "JIRA_NOT_APPROVED",
@@ -362,8 +351,7 @@ class JiraApprovalPolicy:
             summary=summary,
             status=snapshot.status,
             approval_state=snapshot.approval_state or "",
-            risk=snapshot.risk or "",
-            target_environment=snapshot.target_environment or "",
+            risk=snapshot.risk,
             approved_by=snapshot.approved_by,
             approved_at=snapshot.approved_at,
             jira_url=snapshot.issue_url,

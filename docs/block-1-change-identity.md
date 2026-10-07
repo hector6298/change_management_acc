@@ -5,9 +5,10 @@
 - Jira owns the change request and its lifecycle.
 - The Jira issue key (such as `DEMO-12`) is the only `change_id` used across
   GitHub, CI/CD, Databricks, and evidence. Do not mint an accelerator ID.
-- A governed production deployment requires an existing Jira issue of the
-  configured change-request type, explicit approval, and production as its
-  target environment.
+- A production-bound PR is determined by its GitHub target branch. Jira must
+  contain an issue of the configured change-request type and explicit approval
+  for the Action to pass. Jira environment fields do not determine whether
+  production approval is required.
 - Approval must precede production deployment. The current Approval State
   must match the configured `approved_value`, and Jira history must identify
   who changed it and when. Workflow status is recorded but does not determine
@@ -29,10 +30,9 @@ to its create and view layouts. Use existing Jira fields where noted.
 | Status | Workflow status (built in) | Jira workflow lifecycle; observed by the Action but not used as the approval gate |
 | Approval State | Single-select custom field | A value selected by the team; the configured `approved_value` is the one value that authorizes production |
 | Risk | Single-select custom field | `Low`, `Medium`, `High`, `Critical` |
-| Target Environment | Single-select custom field | `Development`, `Test`, `Production` |
 
-For an initial demo, make Summary, Approval State, Risk, and Target Environment
-required on the Change Request create form. Start Approval State at `Pending`.
+For an initial demo, make Summary and Approval State required on the Change
+Request create form. Start Approval State at `Pending`.
 The Jira issue history records who changed Approval State and when. The
 validator uses that history as approval evidence, so separate Approved By and
 Approved At fields are unnecessary. Restrict the approval transition and
@@ -79,9 +79,9 @@ current approval-step guide describes company-managed workflow approval setup:
 | Missing/malformed Change ID or issue not found | No |
 | Wrong issue type | No |
 | Approval State does not equal the configured approved value | No |
-| Production target without a matching approval history entry and actor/time | No |
-| Production target with the configured approved value and approver/time in issue history | Yes, subject to later Block 2 validation |
-| Development/Test target | Production approval rule does not apply |
+| Production-bound PR without a matching approval history entry and actor/time | No |
+| Production-bound PR with the configured approved value and approver/time in issue history | Yes, subject to later Block 2 validation |
+| PR targets a non-production GitHub branch | Jira approval is not checked |
 
 The local contract validates request data and deployment eligibility. It does
 not query Jira, enforce Jira workflow permissions, or prevent a user with Jira
@@ -93,18 +93,22 @@ later integration, authenticated API checks.
 `src/change_assurance/models/change_identity.py` provides:
 
 - Jira issue-key format validation and canonical `change_id` normalization.
-- Required identity and non-empty normalized fields.
+- Required identity and non-empty policy fields; optional Jira metadata stays
+  optional when its YAML rule is not required.
 - Production eligibility checks requiring the configured Approval State and
   extractable actor/timestamp from issue history.
 - A deployed identity wrapper that rejects changing the Change ID after
   deployment.
 
 The runtime rules are loaded from [`config/change-request.yml`](../config/change-request.yml).
-It defines the issue type, schema version, Jira key pattern, production
-environment, Jira field mappings, and one `approved_value`. Other Jira field
-values are required or optional according to `jira_fields`; their values are
-not restricted to enumerated lists. The Action and local `ChangeRequest` model
-read this same file. Set `CHANGE_REQUEST_CONFIG` to use another YAML path.
+It defines the issue type, schema version, Jira key pattern, Jira field
+mappings, and one `approved_value`. Set each mapped
+field's `required` flag independently; there is no hard-coded required-field
+set. The approval policy needs an `approval_state` mapping, while
+`risk` and other fields may be omitted or configured as needed. Field values
+are not restricted to enumerated lists.
+The Action and local `ChangeRequest` model read this same file. Set
+`CHANGE_REQUEST_CONFIG` to use another YAML path.
 Keep the file in the trusted base branch because it helps determine the merge
 decision.
 

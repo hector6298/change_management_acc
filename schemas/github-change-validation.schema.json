@@ -39,11 +39,10 @@
         "approval_history_state": { "type": ["string", "null"] },
         "approved_by": { "type": ["string", "null"] },
         "approved_at": { "type": ["string", "null"], "format": "date-time" },
-        "target_environment": { "type": ["string", "null"] },
         "risk": { "type": ["string", "null"] },
         "required_fields": { "type": "object", "additionalProperties": true }
       },
-      "required": ["issue_url", "issue_type", "status", "approval_state", "approval_history_state", "approved_by", "approved_at", "target_environment", "risk", "required_fields"],
+      "required": ["issue_url", "issue_type", "status", "approval_state", "approval_history_state", "approved_by", "approved_at", "risk", "required_fields"],
       "additionalProperties": false
     },
     "reason_codes": { "type": "array", "items": { "type": "object", "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" } }, "additionalProperties": false } },

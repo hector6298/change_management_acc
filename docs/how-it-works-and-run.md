@@ -29,8 +29,8 @@ The Action coordinator loads the pull-request event, then follows this flow:
 3. It retrieves the PR's commits from GitHub. Each non-merge commit message
    must contain that Jira key and no other Jira issue key.
 4. It retrieves the mapped Jira issue fields and the paginated issue changelog.
-   It validates the Change Request type, Production target environment, all
-   required fields, and the configured Approval State value. It derives the
+   It validates the Change Request type, all required Jira fields, and the
+   configured Approval State value. It derives the
    approver and approval time from the latest Approval State field change.
    Workflow status is recorded as evidence but does not gate approval.
 5. It records `PASS`, `FAILURE`, `ERROR`, or `SKIPPED`, writes
@@ -136,14 +136,22 @@ jira_fields:
     required: true
 ```
 
-Keep the existing `approval_state`, `target_environment`, and `risk` entries;
-they are required by the current production policy. Set
-`jira_fields.approval_state.approved_value` to the single value that authorizes
-production, for example `Approved`. Other Approval State values fail the check.
+Configure `approval_state` because the production policy needs it to verify
+authorization. Production targeting comes from the PR's GitHub base branch,
+matched against `PRODUCTION_BRANCHES`; Jira target-environment fields are not
+used by this Action. `risk` and any additional Jira fields can be included or
+omitted according to your contract. Set each
+field's `required` flag independently to control the generic required-field
+check. The approval policy still needs a non-empty approved state. For example,
+change `risk.required` to `false` to make Risk optional, or remove the
+`risk` mapping if you do not use that Jira field.
+Set `jira_fields.approval_state.approved_value` to the single value that
+authorizes production, for example `Approved`. Other Approval State values
+fail the check.
 Supported field types are `select`, `text`, `boolean`, `date_time`, and `raw`.
-Required field values are checked and included in the evidence JSON; there are
-no accepted-value lists. Approval requires the latest Approval State changelog
-entry to match the current field value and include an extractable actor and
+Fields marked `required: true` are checked for a value and included in the
+evidence JSON; there are no accepted-value lists. Approval requires the latest
+Approval State changelog entry to match the current field value and include an extractable actor and
 timestamp. OAuth client credentials remain in Actions secrets; do not put
 credentials in the YAML file.
 
