@@ -217,7 +217,8 @@ review and branch protection rules still apply.
 
 The Action expects Jira values to meet the configured contract:
 
-- `Target Environment` is `Production`.
+- The PR target branch matches a configured production branch; this is decided
+  from GitHub metadata before Jira is queried.
 - `Approval State` equals `jira_fields.approval_state.approved_value` in the
   YAML contract.
 - The latest Approval State changelog entry matches the current value and
@@ -289,11 +290,9 @@ One versioned result per validation attempt, containing at least:
     "approval_state": "Approved",
     "approved_by": "approver-account-id",
     "approved_at": "2026-10-06T21:40:00Z",
-    "target_environment": "Production",
     "risk": "Medium",
     "required_fields": {
       "approval_state": "Approved",
-      "target_environment": "Production",
       "risk": "Medium"
     },
     "issue_url": "https://example.atlassian.net/browse/DEMO-12"

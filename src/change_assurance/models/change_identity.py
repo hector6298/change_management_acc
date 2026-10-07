@@ -37,7 +37,6 @@ class ChangeRequestContract:
     schema_version: str
     issue_type: str
     issue_key_pattern: str
-    production_environment: str
     approved_state: str
     jira_fields: dict[str, JiraFieldRule]
 
@@ -93,12 +92,14 @@ class ChangeRequestContract:
                     required=required,
                     approved_value=approved_value,
                 )
+            approval_rule = jira_fields.get("approval_state")
             contract = cls(
                 schema_version=str(values["schema_version"]),
                 issue_type=str(values["issue_type"]),
                 issue_key_pattern=str(values["issue_key_pattern"]),
-                production_environment=str(values["production_environment"]),
-                approved_state=str(jira_fields["approval_state"].approved_value or ""),
+                approved_state=str(approval_rule.approved_value or "")
+                if approval_rule
+                else "",
                 jira_fields=jira_fields,
             )
         except (AttributeError, KeyError, TypeError) as exc:
@@ -112,10 +113,9 @@ class ChangeRequestContract:
             re.compile(contract.issue_key_pattern)
         except re.error as exc:
             raise ContractViolation("issue_key_pattern is not a valid regular expression") from exc
-        required_core_fields = {"approval_state", "target_environment", "risk"}
-        if not required_core_fields.issubset(contract.jira_fields):
+        if "approval_state" not in contract.jira_fields:
             raise ContractViolation(
-                "jira_fields must configure approval_state, target_environment, and risk"
+                "jira_fields.approval_state must be configured for production approval"
             )
         for name, rule in contract.jira_fields.items():
             if not rule.field_id or rule.field_id == "None":
@@ -124,11 +124,8 @@ class ChangeRequestContract:
                 raise ContractViolation(
                     f"jira_fields.{name}.type must be select, text, boolean, date_time, or raw"
                 )
-        for name in required_core_fields:
-            if not contract.jira_fields[name].required:
-                raise ContractViolation(f"jira_fields.{name} must remain required")
-            if contract.jira_fields[name].value_type != "select":
-                raise ContractViolation(f"jira_fields.{name}.type must be select")
+        if contract.jira_fields["approval_state"].value_type != "select":
+            raise ContractViolation("jira_fields.approval_state.type must be select")
         if not contract.approved_state:
             raise ContractViolation(
                 "jira_fields.approval_state.approved_value must be configured"
@@ -149,8 +146,7 @@ class ChangeRequest:
     summary: str
     status: str
     approval_state: str
-    risk: str
-    target_environment: str
+    risk: Optional[str] = None
     approved_by: Optional[str] = None
     approved_at: Optional[datetime] = None
     description: str = ""
@@ -173,11 +169,12 @@ class ChangeRequest:
         for name, value in (
             ("status", self.status),
             ("approval_state", self.approval_state),
-            ("risk", self.risk),
-            ("target_environment", self.target_environment),
         ):
             if not isinstance(value, str) or not value.strip():
                 raise ContractViolation(f"{name} is required")
+        for name, value in (("risk", self.risk),):
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ContractViolation(f"{name} must be non-empty when provided")
         if self.approved_at is not None and self.approved_at.tzinfo is None:
             raise ContractViolation("approved_at must include a timezone")
         return self
@@ -185,11 +182,9 @@ class ChangeRequest:
     def require_production_approval(
         self, contract: Optional[ChangeRequestContract] = None
     ) -> "ChangeRequest":
-        """Enforce the approval gate only for production-targeted changes."""
+        """Require approval when this request is treated as production-bound."""
         contract = contract or ChangeRequestContract.load()
         self.validate(contract)
-        if self.target_environment != contract.production_environment:
-            return self
         if self.approval_state != contract.approved_state:
             raise ContractViolation(
                 f"production change requires approval_state={contract.approved_state!r}"
