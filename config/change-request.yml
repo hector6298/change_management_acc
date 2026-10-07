@@ -1,7 +1,7 @@
 # Jira custom-field IDs and the one state that authorizes production change.
 # Keep API credentials in GitHub Actions secrets.
 schema_version: "1.1"
-issue_type: Change Request
+issue_type: Task
 issue_key_pattern: "^[A-Z][A-Z0-9]+-[1-9][0-9]*$"
 jira_fields:
   approval_state:
