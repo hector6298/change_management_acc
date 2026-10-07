@@ -157,8 +157,13 @@ credentials in the YAML file.
 3. Open the service account, choose **Create credentials → OAuth 2.0**, and
    select the Jira `read:jira-work` scope. The validator only reads issue
    fields and changelogs, so it does not need Jira write scopes.
-4. Find the Jira site's **Cloud ID** in Atlassian Administration. It is the
-   site identifier, not the organization ID.
+4. Find the Jira site's **Cloud ID** by opening
+   `https://<your-jira-site>.atlassian.net/_edge/tenant_info` in a browser,
+   replacing the hostname with the Jira site that contains your Change
+   Request. The endpoint returns JSON such as
+   `{"cloudId":"<your-cloud-id>"}`. Copy the `cloudId` value into
+   `JIRA_CLOUD_ID`; do not use the organization ID. Atlassian documents this
+   lookup in its [Cloud ID guide](https://support.atlassian.com/jira/kb/retrieve-my-atlassian-sites-cloud-id/).
 5. Add `JIRA_CLOUD_ID` as a GitHub Actions variable. Add the OAuth client ID
    and secret as `JIRA_OAUTH_CLIENT_ID` and `JIRA_OAUTH_CLIENT_SECRET` Actions
    secrets. The client exchanges these credentials for a short-lived access

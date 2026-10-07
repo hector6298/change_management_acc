@@ -195,8 +195,10 @@ review and branch protection rules still apply.
 
    Replace each sample custom-field ID in `config/change-request.yml` with the
    actual field ID in your Jira site. Display names alone are not enough for
-   the REST API mapping. Set `JIRA_CLOUD_ID` to the site's Cloud ID and use branch
-   names that match your actual protected production branches.
+   the REST API mapping. Get `JIRA_CLOUD_ID` by opening
+   `https://<your-jira-site>.atlassian.net/_edge/tenant_info` and copying the
+   returned `cloudId` value. See [Cloud ID lookup instructions](how-it-works-and-run.md#create-an-atlassian-service-account).
+   Use branch names that match your actual protected production branches.
 3. Create an Atlassian service account, grant it read access to the Change
    Request project, and create an OAuth 2.0 credential with the `read:jira-work`
    scope. Add its client ID and secret as `JIRA_OAUTH_CLIENT_ID` and
