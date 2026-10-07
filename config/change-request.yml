@@ -10,7 +10,7 @@ jira_fields:
     required: true
     approved_value: Approved
   risk:
-    id: customfield_10047
+    id: customfield_10045
     type: select
     required: true
   # Add another entry with required: true to enforce a mandatory Jira field.
