@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/change-assurance/change-request.schema.json",
+  "title": "Normalized Jira Change Request",
+  "description": "Block 1 contract. change_id is the Jira issue key, never a separately generated identifier.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "change_id",
+    "issue_type",
+    "summary",
+    "status",
+    "approval_state",
+    "risk",
+    "target_environment",
+    "emergency_change"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "change_id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]+-[1-9][0-9]*$",
+      "description": "Jira issue key, for example DEMO-12."
+    },
+    "issue_type": { "const": "Change Request" },
+    "summary": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "status": {
+      "enum": ["Draft", "Awaiting Approval", "Approved", "Rejected", "Implemented", "Emergency Approved"]
+    },
+    "approval_state": {
+      "enum": ["Pending", "Approved", "Rejected", "Emergency Approved"]
+    },
+    "approved_by": { "type": ["string", "null"] },
+    "approved_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "risk": { "enum": ["Low", "Medium", "High", "Critical"] },
+    "target_environment": { "enum": ["Development", "Test", "Production"] },
+    "emergency_change": { "type": "boolean" },
+    "jira_url": { "type": ["string", "null"], "format": "uri" }
+  }
+}
