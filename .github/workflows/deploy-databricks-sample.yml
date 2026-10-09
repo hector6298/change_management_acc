@@ -58,9 +58,22 @@ jobs:
           JIRA_OAUTH_CLIENT_SECRET: ${{ secrets.JIRA_OAUTH_CLIENT_SECRET }}
         run: python3 -m change_assurance.action.deployment_preflight
 
+      - name: Require an explicit development catalog and schema
+        env:
+          SAMPLE_CATALOG: ${{ vars.DATABRICKS_SAMPLE_CATALOG }}
+          SAMPLE_SCHEMA: ${{ vars.DATABRICKS_SAMPLE_SCHEMA }}
+        run: |
+          if [ -z "$SAMPLE_CATALOG" ] || [ -z "$SAMPLE_SCHEMA" ]; then
+            echo "Set repository variables DATABRICKS_SAMPLE_CATALOG and DATABRICKS_SAMPLE_SCHEMA before publishing a release."
+            exit 1
+          fi
+
       - name: Publish release candidate review summary
         if: always()
         working-directory: .cms
+        env:
+          SAMPLE_CATALOG: ${{ vars.DATABRICKS_SAMPLE_CATALOG }}
+          SAMPLE_SCHEMA: ${{ vars.DATABRICKS_SAMPLE_SCHEMA }}
         run: |
           if [ -f release-source.json ]; then
             python3 - <<'PY'
@@ -77,6 +90,7 @@ jobs:
               summary.write(f"- **Exact release commit:** `{release.get('release_commit_sha', 'unresolved')}`\n")
               summary.write(f"- **Source validation:** `{source.get('result')}`\n")
               summary.write(f"- **Jira validation:** `{authorization.get('result', 'NOT_RUN')}`\n\n")
+              summary.write(f"- **Databricks target:** `dev` / `{__import__('os').environ.get('SAMPLE_CATALOG') or 'unset'}.{__import__('os').environ.get('SAMPLE_SCHEMA') or 'unset'}`\n\n")
               summary.write("### Jira changes and business approvals\n\n")
               summary.write("| Jira change | Validation | Business approver | Approved at |\n|---|---|---|---|\n")
               for item in authorization.get("change_requests", []):
