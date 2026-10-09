@@ -8,15 +8,16 @@ production approval. It then writes a JSON evidence record and a run summary.
 ## How the code is organized
 
 ```text
-src/change_assurance/
-  action/github_action.py   # Coordinates one validation run
-  clients/github.py         # Reads PR commits from the GitHub API
-  clients/jira.py           # Reads configured fields from Jira Cloud
-  models/action.py          # Settings, PR, evidence, and error records
-  models/change_identity.py # Shared Block 1 Change Request contract
-  policy/validation.py      # Change ID and Jira approval rules
-  reporting/workflow.py    # Evidence JSON and Markdown run summary
-config/change-request.yml   # Jira fields and approval policy
+.cms/
+  src/change_assurance/
+    action/github_action.py   # Coordinates one validation run
+    clients/github.py         # Reads PR commits from the GitHub API
+    clients/jira.py           # Reads configured fields from Jira Cloud
+    models/action.py          # Settings, PR, evidence, and error records
+    models/change_identity.py # Shared Block 1 Change Request contract
+    policy/validation.py      # Change ID and Jira approval rules
+    reporting/workflow.py    # Evidence JSON and Markdown run summary
+  config/change-request.yml # Jira fields and approval policy
 ```
 
 The Action coordinator loads the pull-request event, then follows this flow:
@@ -43,7 +44,7 @@ missing configuration value, inaccessible API, or invalid event is `ERROR`.
 
 ## Run through GitHub Actions
 
-The workflow is [`.github/workflows/change-assurance.yml`](../.github/workflows/change-assurance.yml).
+The workflow is [`.github/workflows/change-assurance.yml`](../../.github/workflows/change-assurance.yml).
 It starts on PR open, edit, synchronize, reopen, ready-for-review, and
 converted-to-draft events. It runs `change_assurance.action.github_action` on
 the trusted target branch and uploads the evidence JSON as an artifact for 30
@@ -54,7 +55,7 @@ Before the first run, configure the repository or organization settings:
 | Setting | Kind | Example / purpose |
 |---|---|---|
 | `CHANGE_ASSURANCE_PRODUCTION_BRANCHES` | Actions variable | `main,release/*`; defaults to `main` |
-| `CHANGE_REQUEST_CONFIG` | Actions variable | Contract YAML path; defaults to `config/change-request.yml` |
+| `CHANGE_REQUEST_CONFIG` | Actions variable | Contract YAML path relative to `.cms/`; defaults to `config/change-request.yml` |
 | `JIRA_CLOUD_ID` | Actions variable | Cloud ID for the Jira site |
 | `JIRA_OAUTH_CLIENT_ID` | Actions secret | OAuth client ID for the Atlassian service account |
 | `JIRA_OAUTH_CLIENT_SECRET` | Actions secret | OAuth client secret for the Atlassian service account |
@@ -87,11 +88,12 @@ PR event payload and credentials with the required read permissions.
 1. Save the JSON payload for a GitHub `pull_request` event to a file, for
    example `/tmp/pull_request.json`. The payload must include the PR title,
    body, source branch, target branch, number, and head SHA.
-2. From the repository root, set the environment below. Keep credentials in
+2. From the repository root, change into `.cms/` and set the environment below. Keep credentials in
    your shell environment or secret manager; do not commit them or paste them
    into source files.
 
 ```sh
+cd .cms
 python3 -m pip install -r requirements.txt
 
 export PYTHONPATH=src

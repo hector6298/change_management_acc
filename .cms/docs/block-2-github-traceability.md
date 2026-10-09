@@ -68,7 +68,7 @@ is a later block and must be explicitly integrated and independently reconciled.
 
 The starter implementation is:
 
-- [`.github/workflows/change-assurance.yml`](../.github/workflows/change-assurance.yml)
+- [`.github/workflows/change-assurance.yml`](../../.github/workflows/change-assurance.yml)
   — required-check workflow on PR open/edit/update/reopen events.
 - [`src/change_assurance/action/github_action.py`](../src/change_assurance/action/github_action.py)
   — small workflow coordinator and module entry point.

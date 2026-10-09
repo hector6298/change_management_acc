@@ -1,0 +1,7 @@
+# Local credentials and environment overrides
+.env
+.env.*
+!.env.example
+deployment-source.json
+deployment-authorization.json
+databricks-deployment-evidence.json

@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/change-assurance/databricks-deployment-attempt.schema.json",
+  "title": "Databricks Deployment Attempt Evidence",
+  "description": "One immutable record describing a CI/CD attempt to validate or deploy a Databricks bundle.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_type",
+    "deployment_attempt_id",
+    "observed_at",
+    "change_id",
+    "authorization",
+    "source",
+    "ci",
+    "databricks",
+    "execution",
+    "release_gate",
+    "reason_codes",
+    "policy_version"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.1" },
+    "event_type": { "const": "databricks_deployment_attempt" },
+    "deployment_attempt_id": { "type": "string", "minLength": 1 },
+    "observed_at": { "type": "string", "format": "date-time" },
+    "change_id": { "type": ["string", "null"], "pattern": "^[A-Z][A-Z0-9]+-[1-9][0-9]*$" },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jira_issue_url", "approval_state", "approved_by", "approved_at", "revalidated_at"],
+      "properties": {
+        "result": { "type": ["string", "null"], "enum": ["PASS", "FAILURE", "ERROR", null] },
+        "jira_issue_url": { "type": ["string", "null"], "format": "uri" },
+        "approval_state": { "type": ["string", "null"] },
+        "approved_by": { "type": ["string", "null"] },
+        "approved_at": { "type": ["string", "null"], "format": "date-time" },
+        "revalidated_at": { "type": ["string", "null"], "format": "date-time" },
+        "change_requests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["change_id", "result", "jira_issue_url", "approval_state", "approved_by", "approved_at", "revalidated_at"],
+            "properties": {
+              "change_id": { "type": "string", "pattern": "^[A-Z][A-Z0-9]+-[1-9][0-9]*$" },
+              "result": { "enum": ["PASS", "FAILURE", "ERROR"] },
+              "jira_issue_url": { "type": ["string", "null"], "format": "uri" },
+              "approval_state": { "type": ["string", "null"] },
+              "approved_by": { "type": ["string", "null"] },
+              "approved_at": { "type": ["string", "null"], "format": "date-time" },
+              "revalidated_at": { "type": ["string", "null"], "format": "date-time" }
+            }
+          }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "pull_request", "merge_commit_sha", "branch"],
+      "properties": {
+        "repository": { "type": ["string", "null"] },
+        "pull_request": { "type": ["integer", "null"], "minimum": 1 },
+        "merge_commit_sha": { "type": ["string", "null"] },
+        "branch": { "type": ["string", "null"] },
+        "pull_request_url": { "type": ["string", "null"], "format": "uri" },
+        "pull_request_title": { "type": ["string", "null"] },
+        "source_branch": { "type": ["string", "null"] },
+        "target_branch": { "type": ["string", "null"] },
+        "head_sha": { "type": ["string", "null"] },
+        "commit_shas": { "type": "array", "items": { "type": "string" } },
+        "release_tag": { "type": ["string", "null"] },
+        "base_release_tag": { "type": ["string", "null"] },
+        "release_commit_sha": { "type": ["string", "null"] },
+        "change_ids": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9]+-[1-9][0-9]*$" } },
+        "commit_identities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["commit_sha", "change_id"],
+            "properties": {
+              "commit_sha": { "type": "string", "minLength": 40 },
+              "change_id": { "type": "string", "pattern": "^[A-Z][A-Z0-9]+-[1-9][0-9]*$" }
+            }
+          }
+        }
+      }
+    },
+    "ci": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "run_id", "run_attempt", "run_url", "started_at", "completed_at"],
+      "properties": {
+        "provider": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 },
+        "run_attempt": { "type": "integer", "minimum": 1 },
+        "run_url": { "type": ["string", "null"], "format": "uri" },
+        "started_at": { "type": ["string", "null"], "format": "date-time" },
+        "completed_at": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "databricks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace_id", "workspace_host", "cli_version", "bundle_name", "bundle_target", "deployment_operation_id", "validation_result", "deployment_result", "resources", "artifact_digest"],
+      "properties": {
+        "workspace_id": { "type": ["string", "null"] },
+        "workspace_host": { "type": ["string", "null"], "format": "uri" },
+        "cli_version": { "type": ["string", "null"] },
+        "bundle_name": { "type": ["string", "null"] },
+        "bundle_target": { "type": ["string", "null"] },
+        "deployment_operation_id": { "type": ["string", "null"] },
+        "validation_result": { "enum": ["SUCCESS", "FAILURE", "NOT_RUN"] },
+        "deployment_result": { "enum": ["SUCCESS", "FAILURE", "NOT_RUN"] },
+        "resources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["resource_type", "resource_key", "resource_id", "url"],
+            "properties": {
+              "resource_type": { "type": "string", "minLength": 1 },
+              "resource_key": { "type": "string", "minLength": 1 },
+              "resource_id": { "type": ["string", "null"] },
+              "url": { "type": ["string", "null"], "format": "uri" }
+            }
+          }
+        },
+        "artifact_digest": { "type": ["string", "null"] }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "job_run_id", "health_check_result"],
+      "properties": {
+        "result": { "enum": ["SUCCESS", "FAILURE", "NOT_RUN", "NOT_APPLICABLE"] },
+        "job_run_id": { "type": ["string", "null"] },
+        "health_check_result": { "type": ["string", "null"] }
+      }
+    },
+    "release_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["environment", "protection_result", "workflow_run_url"],
+      "properties": {
+        "environment": { "type": ["string", "null"] },
+        "protection_result": { "enum": ["PASSED", "NOT_APPLICABLE"] },
+        "workflow_run_url": { "type": ["string", "null"], "format": "uri" }
+      }
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": { "code": { "type": "string" }, "message": { "type": "string" } }
+      }
+    },
+    "policy_version": { "type": "string", "minLength": 1 }
+  }
+}

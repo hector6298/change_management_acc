@@ -23,6 +23,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Python dependencies
+        working-directory: .cms
         run: python3 -m pip install -r requirements.txt
 
       - name: Validate Jira change
@@ -39,6 +40,7 @@ jobs:
           JIRA_CLOUD_ID: ${{ vars.JIRA_CLOUD_ID }}
           JIRA_OAUTH_CLIENT_ID: ${{ secrets.JIRA_OAUTH_CLIENT_ID }}
           JIRA_OAUTH_CLIENT_SECRET: ${{ secrets.JIRA_OAUTH_CLIENT_SECRET }}
+        working-directory: .cms
         run: python3 -m change_assurance.action.github_action
 
       - name: Upload validation evidence
@@ -46,6 +48,6 @@ jobs:
         uses: actions/upload-artifact@v7.0.1
         with:
           name: change-assurance-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: change-assurance-evidence.json
+          path: .cms/change-assurance-evidence.json
           if-no-files-found: warn
           retention-days: 30

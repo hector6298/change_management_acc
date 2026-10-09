@@ -142,6 +142,65 @@ class ChangeIdPolicy:
             )
         return commit_shas
 
+    @staticmethod
+    def validate_release_commits(
+        commits: list[dict[str, Any]],
+    ) -> tuple[list[str], list[dict[str, str]]]:
+        """Require one configured Jira key in every release commit.
+
+        Parameters
+        ----------
+        commits : list of dict[str, Any]
+            Commit records returned by GitHub's compare API.
+
+        Returns
+        -------
+        tuple
+            Ordered commit SHAs and their corresponding Change IDs.
+
+        Raises
+        ------
+        ValidationFailure
+            If a commit has no Jira key, has conflicting keys, or the range is
+            empty.
+        """
+        if not commits:
+            raise ValidationFailure(
+                "RELEASE_HAS_NO_COMMITS",
+                "The release contains no commits after its baseline release.",
+            )
+        contract = _load_change_request_contract()
+        key_pattern = _unanchored_pattern(contract.issue_key_pattern)
+        token_pattern = re.compile(rf"\b{key_pattern}\b")
+        commit_shas: list[str] = []
+        identities: list[dict[str, str]] = []
+        for item in commits:
+            commit = item.get("commit") or {}
+            message = str(commit.get("message") or "")
+            issue_keys = {match.group(0) for match in token_pattern.finditer(message)}
+            sha = str(item.get("sha") or "")
+            short_sha = sha[:12] or "unknown"
+            if not re.fullmatch(r"[0-9a-fA-F]{40,64}", sha):
+                raise ValidationFailure(
+                    "RELEASE_COMMIT_SHA_INVALID",
+                    f"Release commit `{short_sha}` has an invalid GitHub SHA.",
+                    result="ERROR",
+                )
+            if len(issue_keys) != 1:
+                raise ValidationFailure(
+                    "RELEASE_COMMIT_CHANGE_ID_INVALID",
+                    f"Release commit `{short_sha}` must reference exactly one Jira issue key.",
+                )
+            change_id = next(iter(issue_keys))
+            commit_shas.append(sha)
+            identities.append({"commit_sha": sha, "change_id": change_id})
+        if not identities:
+            raise ValidationFailure(
+                "RELEASE_HAS_NO_CHANGE_COMMITS",
+                "The release range has no commits to validate.",
+            )
+        return commit_shas, identities
+
 
 def _unanchored_pattern(pattern: str) -> str:
     """Return the configured key expression without full-match anchors."""
