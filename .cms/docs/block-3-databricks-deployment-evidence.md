@@ -303,9 +303,11 @@ the configured development schema.
    only for public repositories; private or internal repositories need a plan
    that supports environment protection rules. See the official
    [required reviewer plan requirements](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments#required-reviewers).
-4. Create GitHub Actions environment variables `DATABRICKS_SAMPLE_CATALOG` and
+4. Create repository Actions variables `DATABRICKS_SAMPLE_CATALOG` and
    `DATABRICKS_SAMPLE_SCHEMA` naming an existing development catalog and
-   writable schema. Set the repository variable `CHANGE_ASSURANCE_BASE_RELEASE_TAG`
+   writable schema. The release candidate summary shows this destination before
+   reviewers approve, and the workflow stops if either value is unset. Set the
+   repository variable `CHANGE_ASSURANCE_BASE_RELEASE_TAG`
    to the baseline tag for the first deployment when no earlier GitHub Release
    exists. Once the first deployment is complete, remove this variable; later
    releases compare against the immediately preceding published release.
