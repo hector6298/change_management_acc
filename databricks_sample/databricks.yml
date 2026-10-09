@@ -1,0 +1,19 @@
+bundle:
+  name: change-assurance-sample
+  databricks_cli_version: ">= 1.10.0"
+
+include:
+  - resources/workflows/*.yml
+
+variables:
+  sample_catalog:
+    description: Existing Unity Catalog catalog for sample output tables.
+    default: main
+  sample_schema:
+    description: Existing schema for sample output tables.
+    default: default
+
+targets:
+  dev:
+    default: true
+    mode: development

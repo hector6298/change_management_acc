@@ -1,0 +1,237 @@
+name: Databricks release deployment
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: databricks-release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  validate-release:
+    name: Validate release commits and Jira approvals
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      release_commit_sha: ${{ steps.source.outputs.release_commit_sha }}
+      release_tag: ${{ steps.source.outputs.release_tag }}
+    steps:
+      - name: Check out trusted policy from the default branch
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Install Python dependencies
+        working-directory: .cms
+        run: python3 -m pip install -r requirements.txt
+
+      - name: Resolve release commit range and validate commit identities
+        id: source
+        working-directory: .cms
+        env:
+          PYTHONPATH: src
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_PUBLISHED_AT: ${{ github.event.release.published_at }}
+          CHANGE_ASSURANCE_BASE_RELEASE_TAG: ${{ vars.CHANGE_ASSURANCE_BASE_RELEASE_TAG }}
+          DEPLOYMENT_SOURCE_PATH: release-source.json
+          CHANGE_REQUEST_CONFIG: config/change-request.yml
+        run: python3 -m change_assurance.action.release_source
+
+      - name: Validate Jira approval for every release change
+        working-directory: .cms
+        env:
+          PYTHONPATH: src
+          DEPLOYMENT_SOURCE_PATH: release-source.json
+          DEPLOYMENT_AUTHORIZATION_PATH: release-authorization.json
+          CHANGE_REQUEST_CONFIG: config/change-request.yml
+          JIRA_CLOUD_ID: ${{ vars.JIRA_CLOUD_ID }}
+          JIRA_OAUTH_CLIENT_ID: ${{ secrets.JIRA_OAUTH_CLIENT_ID }}
+          JIRA_OAUTH_CLIENT_SECRET: ${{ secrets.JIRA_OAUTH_CLIENT_SECRET }}
+        run: python3 -m change_assurance.action.deployment_preflight
+
+      - name: Publish release candidate review summary
+        if: always()
+        working-directory: .cms
+        run: |
+          if [ -f release-source.json ]; then
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          source = json.loads(Path("release-source.json").read_text())
+          authorization_path = Path("release-authorization.json")
+          authorization = json.loads(authorization_path.read_text()) if authorization_path.exists() else {}
+          release = source.get("source") or {}
+          with open(__import__("os").environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write(f"## Release candidate: `{release.get('release_tag', 'unresolved')}`\n\n")
+              summary.write(f"- **Baseline:** `{release.get('base_release_tag', 'unresolved')}`\n")
+              summary.write(f"- **Exact release commit:** `{release.get('release_commit_sha', 'unresolved')}`\n")
+              summary.write(f"- **Source validation:** `{source.get('result')}`\n")
+              summary.write(f"- **Jira validation:** `{authorization.get('result', 'NOT_RUN')}`\n\n")
+              summary.write("### Jira changes and business approvals\n\n")
+              summary.write("| Jira change | Validation | Business approver | Approved at |\n|---|---|---|---|\n")
+              for item in authorization.get("change_requests", []):
+                  snapshot = item.get("authorization") or {}
+                  summary.write(f"| {item.get('change_id')} | {item.get('result')} | {snapshot.get('approved_by') or '—'} | {snapshot.get('approved_at') or '—'} |\n")
+              summary.write("\n### Included commits\n\n| Commit | Jira change |\n|---|---|\n")
+              for item in release.get("commit_identities", []):
+                  summary.write(f"| `{item.get('commit_sha')}` | {item.get('change_id')} |\n")
+          PY
+          fi
+
+      - name: Upload release candidate manifest
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: release-candidate-${{ github.event.release.tag_name }}-${{ github.run_id }}
+          path: |
+            .cms/release-source.json
+            .cms/release-authorization.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  deploy-release:
+    name: Deploy approved release to Databricks dev
+    needs: validate-release
+    if: needs.validate-release.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # Configure Required reviewers on this environment. This gate pauses after
+    # the manifest is available for review and before any Databricks operation.
+    environment: databricks-dev
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+      BUNDLE_VAR_sample_catalog: ${{ vars.DATABRICKS_SAMPLE_CATALOG }}
+      BUNDLE_VAR_sample_schema: ${{ vars.DATABRICKS_SAMPLE_SCHEMA }}
+    steps:
+      - name: Check out trusted policy from the default branch
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Download validated release manifest
+        uses: actions/download-artifact@v7.0.1
+        with:
+          name: release-candidate-${{ github.event.release.tag_name }}-${{ github.run_id }}
+          path: .cms
+
+      - name: Check out the exact approved release commit
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.validate-release.outputs.release_commit_sha }}
+          path: deployment_source
+          persist-credentials: false
+
+      - name: Revalidate all Jira approvals after release gate
+        working-directory: .cms
+        env:
+          PYTHONPATH: src
+          DEPLOYMENT_SOURCE_PATH: release-source.json
+          DEPLOYMENT_AUTHORIZATION_PATH: deployment-authorization.json
+          CHANGE_REQUEST_CONFIG: config/change-request.yml
+          JIRA_CLOUD_ID: ${{ vars.JIRA_CLOUD_ID }}
+          JIRA_OAUTH_CLIENT_ID: ${{ secrets.JIRA_OAUTH_CLIENT_ID }}
+          JIRA_OAUTH_CLIENT_SECRET: ${{ secrets.JIRA_OAUTH_CLIENT_SECRET }}
+        run: python3 -m change_assurance.action.deployment_preflight
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@v1.10.0
+
+      - name: Record CLI version and deployment start time
+        id: run_metadata
+        run: |
+          echo "cli_version=$(databricks --version | awk '{print $NF}')" >> "$GITHUB_OUTPUT"
+          echo "started_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Databricks bundle
+        id: bundle_validate
+        working-directory: deployment_source/databricks_sample
+        env:
+          DATABRICKS_BUNDLE_TARGET: dev
+        run: databricks bundle validate --target dev
+
+      - name: Deploy Databricks bundle
+        id: bundle_deploy
+        if: steps.bundle_validate.outcome == 'success'
+        working-directory: deployment_source/databricks_sample
+        env:
+          DATABRICKS_BUNDLE_TARGET: dev
+        run: databricks bundle deploy --target dev
+
+      - name: Collect deployed resource summary
+        if: steps.bundle_deploy.outcome == 'success'
+        continue-on-error: true
+        working-directory: deployment_source/databricks_sample
+        env:
+          DATABRICKS_BUNDLE_TARGET: dev
+        run: databricks bundle summary --output json > "$GITHUB_WORKSPACE/bundle-summary.json"
+
+      - name: Run sample Databricks workflow
+        id: bundle_run
+        if: steps.bundle_deploy.outcome == 'success'
+        working-directory: deployment_source/databricks_sample
+        env:
+          DATABRICKS_BUNDLE_TARGET: dev
+        run: |
+          set +e
+          databricks bundle run change_assurance_sample_workflow --target dev 2>&1 \
+            | tee "$GITHUB_WORKSPACE/bundle-run.log"
+          run_status=${PIPESTATUS[0]}
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          log_path = Path(os.environ["GITHUB_WORKSPACE"]) / "bundle-run.log"
+          match = re.search(r"#job/\d+/run/(\d+)", log_path.read_text(encoding="utf-8"))
+          if match:
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+                  output.write(f"run_id={match.group(1)}\n")
+          PY
+          exit "$run_status"
+
+      - name: Write deployment evidence
+        if: always()
+        working-directory: .cms
+        env:
+          PYTHONPATH: src
+          DEPLOYMENT_SOURCE_PATH: release-source.json
+          DEPLOYMENT_AUTHORIZATION_PATH: deployment-authorization.json
+          DATABRICKS_BUNDLE_SUMMARY_PATH: ../bundle-summary.json
+          DEPLOYMENT_STARTED_AT: ${{ steps.run_metadata.outputs.started_at }}
+          MERGE_COMMIT_SHA: ${{ needs.validate-release.outputs.release_commit_sha }}
+          DATABRICKS_VALIDATION_RESULT: ${{ steps.bundle_validate.outcome == 'success' && 'SUCCESS' || steps.bundle_validate.outcome == 'failure' && 'FAILURE' || 'NOT_RUN' }}
+          DATABRICKS_DEPLOYMENT_RESULT: ${{ steps.bundle_deploy.outcome == 'success' && 'SUCCESS' || steps.bundle_deploy.outcome == 'failure' && 'FAILURE' || 'NOT_RUN' }}
+          DATABRICKS_EXECUTION_RESULT: ${{ steps.bundle_run.outcome == 'success' && 'SUCCESS' || steps.bundle_run.outcome == 'failure' && 'FAILURE' || 'NOT_RUN' }}
+          DATABRICKS_JOB_RUN_ID: ${{ steps.bundle_run.outputs.run_id }}
+          DATABRICKS_CLI_VERSION: ${{ steps.run_metadata.outputs.cli_version }}
+          DATABRICKS_BUNDLE_NAME: change-assurance-sample
+          DATABRICKS_BUNDLE_TARGET: dev
+          RELEASE_GATE_ENVIRONMENT: databricks-dev
+          RELEASE_GATE_RESULT: PASSED
+        run: python3 -m change_assurance.action.deployment_evidence
+
+      - name: Upload release deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: databricks-release-${{ github.event.release.tag_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .cms/release-source.json
+            .cms/release-authorization.json
+            .cms/deployment-authorization.json
+            .cms/databricks-deployment-evidence.json
+          if-no-files-found: warn
+          retention-days: 90
