@@ -1,0 +1,51 @@
+resources:
+  jobs:
+    change_assurance_sample_workflow:
+      name: change-assurance-sample-${bundle.target}
+      description: >-
+        Three-step Unity Catalog demo workflow for exercising Databricks
+        deployment and runtime evidence capture.
+      parameters:
+        - name: raw_table
+          default: ${var.sample_catalog}.${var.sample_schema}.change_assurance_raw
+        - name: curated_table
+          default: ${var.sample_catalog}.${var.sample_schema}.change_assurance_curated
+      tasks:
+        - task_key: ingest_sample_data
+          spark_python_task:
+            python_file: ../../sample_scripts/01_ingest.py
+            source: WORKSPACE
+            parameters:
+              - --table
+              - "{{job.parameters.raw_table}}"
+          environment_key: default
+
+        - task_key: transform_sample_data
+          depends_on:
+            - task_key: ingest_sample_data
+          spark_python_task:
+            python_file: ../../sample_scripts/02_transform.py
+            source: WORKSPACE
+            parameters:
+              - --source-table
+              - "{{job.parameters.raw_table}}"
+              - --target-table
+              - "{{job.parameters.curated_table}}"
+          environment_key: default
+
+        - task_key: validate_sample_data
+          depends_on:
+            - task_key: transform_sample_data
+          spark_python_task:
+            python_file: ../../sample_scripts/03_quality_check.py
+            source: WORKSPACE
+            parameters:
+              - --table
+              - "{{job.parameters.curated_table}}"
+          environment_key: default
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+            dependencies: []
