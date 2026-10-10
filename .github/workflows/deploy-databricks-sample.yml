@@ -123,6 +123,7 @@ jobs:
     # the manifest is available for review and before any Databricks operation.
     environment: databricks-dev
     env:
+      DATABRICKS_AUTH_TYPE: oauth-m2m
       DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
       DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
       DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}

@@ -295,8 +295,10 @@ the configured development schema.
    | Secret `DATABRICKS_CLIENT_ID` | Databricks service principal application/client ID |
    | Secret `DATABRICKS_CLIENT_SECRET` | OAuth M2M secret created for that service principal |
 
-   The workflow passes these values to the Databricks CLI, which obtains
-   short-lived OAuth access tokens. Keep all three values in GitHub Secrets;
+   The workflow passes these values to the Databricks CLI and selects
+   `oauth-m2m` authentication, which obtains short-lived OAuth access tokens.
+   `DATABRICKS_HOST` must be the target workspace URL, not the Databricks
+   account console URL. Keep all three values in GitHub Secrets;
    do not put them in `databricks.yml` or deployment evidence. OIDC federation
    and the GitHub `id-token` permission are not required for this setup.
    GitHub's required-reviewer rule is available on Free, Pro, and Team plans
